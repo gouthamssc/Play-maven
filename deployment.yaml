@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: Project user account
+  annotations:
+    description: "Can be used to create roles and rolebinding for a given project"
+objects:
+# Deployment config of history server
+- kind: DeploymentConfig
+  apiVersion: v1
+  metadata:
+    name: play-scala-maven-${PROJECT_NAME}
+    namespace: ${PROJECT_NAME}
+    labels:
+      app: play-scala-maven
+  spec:
+    replicas: 1
+    selector:
+      app: play-scala-maven
+      deploymentconfig: play-scala-maven
+    template:
+      metadata:
+        labels:
+          app: play-scala-maven
+          deploymentconfig: play-scala-maven
+      spec:
+        containers:
+          - image: >-
+              txo-gsi-ica-docker-local.artifactory.swg-devops.com/play-scala-maven:latest
+            imagePullPolicy: Always
+            name: play-scala-maven
+            ports:
+              - containerPort: 9000
+                protocol: TCP
+              - containerPort: 9443
+                protocol: TCP
+        restartPolicy: Always
+        schedulerName: default-scheduler
+# Service for history server on port 18080
+- kind: Service
+  apiVersion: v1
+  metadata:
+    namespace: ${PROJECT_NAME}
+    labels:
+      service: play-scala-maven
+    name: play-scala-maven-${PROJECT_NAME}
+  spec:
+    ports:
+      - name: 9000-tcp
+        port: 9000
+        protocol: TCP
+        targetPort: 9000
+    selector:
+      deploymentconfig: play-scala-maven-${PROJECT_NAME}
+    type: ClusterIP
+# Route for the service defined above
+- kind: Route
+  apiVersion: route.openshift.io/v1
+  metadata:
+    namespace: ${PROJECT_NAME}
+    labels:
+      routes: play-scala-maven
+    name: play-scala-maven-${PROJECT_NAME}
+  spec:
+    host: play-scala-maven.${PROJECT_NAME}.${OPENSHIFT_ROUTE}
+    port:
+      targetPort: 9000-tcp
+    to:
+      kind: Service
+      name: play-scala-maven-${PROJECT_NAME}
+      weight: 100
+  
+
+parameters:
+- name: PROJECT_NAME
+  description: Name of the Spark master/worker image
+  required: true
+- name: OPENSHIFT_ROUTE
+  description: Base route of openshift cluster
+  required: true
+  value: fms-sandbox2.containers.ciocloudservices.ibm.com
+- name: INSTANCE_TYPE
+  required: true  
